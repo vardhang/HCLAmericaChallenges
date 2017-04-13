@@ -2,59 +2,121 @@ package com.sphinix.challenge1.activemq;
 
 import java.util.Random;
 
-import javax.jms.*;
+import javax.jms.Connection;
+import javax.jms.ConnectionFactory;
+import javax.jms.Destination;
+import javax.jms.JMSException;
+import javax.jms.MessageProducer;
+import javax.jms.ObjectMessage;
+import javax.jms.Session;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 
-import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.Logger;
 
+import com.sphinix.util.Constants;
+
+/**
+ * @author Abhi
+ * 
+ *         This class responsibility is to send the numbers to JMS Queue
+ */
 public class Randomizer {
 
-	public Randomizer() throws JMSException, NamingException {
+	final static Logger logger = Logger.getLogger(Randomizer.class);
 
-		// Obtain a JNDI connection
-		InitialContext jndi = new InitialContext();
+	/**
+	 * This method will sends the message to JMS
+	 */
+	public void sendMessage() {
 
-		// Look up a JMS connection factory
-		ConnectionFactory conFactory = (ConnectionFactory) jndi.lookup("connectionFactory");
-		Connection connection;
+		Connection connection = null;
+		ConnectionFactory connectionFactory = null;
+		Session session = null;
+		MessageProducer producer = null;
 
-		// Getting JMS connection from the server and starting it
-		connection = conFactory.createConnection();
 		try {
-			connection.start();
+			// Obtain a JNDI connection
+			InitialContext jndi = new InitialContext();
 
-			// JMS messages are sent and received using a Session.
-			Session session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+			// Look up a JMS connection factory
+			connectionFactory = (ConnectionFactory) jndi.lookup(Constants.CONNECTION_FACTORY);
 
-			Destination destination = (Destination) jndi.lookup("MessageQueue");
+			// Check whether we got the connectionFactory
+			if (connectionFactory != null) {
 
-			// MessageProducer is used for sending messages (as opposed
-			// to MessageConsumer which is used for receiving them)
-			MessageProducer producer = session.createProducer(destination);
+				// Getting JMS connection from the server and starting it
+				connection = connectionFactory.createConnection();
 
-			// We will send a small text message saying 'Hello World!'
-			
-			 Random rand = new Random(); // generate a random number
-		     int num = rand.nextInt(1000) + 1;
-			
-			ObjectMessage message = session.createObjectMessage(new Integer(num));
+				logger.debug(" connection :: " + connection);
 
-			// Here we are sending the message!
-			producer.send(message);
-			System.out.println("Sent number '" + message.getObject() + "'");
-		} finally {
-			connection.close();
-		}
-	}
+				if (connection != null) {
 
-	public static void main(String[] args) throws JMSException {
-		try {
-			BasicConfigurator.configure();
-			new Randomizer();
-		} catch (NamingException e) {
+					connection.start();
+
+					// JMS messages are sent and received using a Session.
+					session = connection.createSession(false, Session.AUTO_ACKNOWLEDGE);
+
+					Destination destination = (Destination) jndi.lookup(Constants.MESSAGE_QUEUE);
+
+					if (session != null) {
+						// MessageProducer is used for sending messages (as opposed
+						// to MessageConsumer which is used for receiving them)
+						producer = session.createProducer(destination);
+
+						// generate a random number
+						int num = new Random().nextInt(1000) + 1;
+
+						// Creating object message
+						ObjectMessage message = session.createObjectMessage(new Integer(num));
+
+						// Here we are sending the message!
+						producer.send(message);
+
+						logger.debug("Sent number '" + message.getObject() + "'");
+
+					} else {
+						logger.debug(" Session object is null");
+					}
+				} else {
+					logger.debug(" Connection object is null");
+				}
+
+			}
+		} catch (JMSException e) {
+			logger.error(" JMSException : " + e.getMessage());
 			e.printStackTrace();
+		} catch (NamingException e) {
+			logger.error(" NamingException : " + e.getMessage());
+			e.printStackTrace();
+		} catch (Exception e) {
+			logger.error(" Exception : " + e.getMessage());
+			e.printStackTrace();
+		} finally {
+			logger.error("Closing connection");
+			try {
+				if (connection != null) {
+					connection.stop();
+					connection.close();
+				}
+				if (session != null) {
+					session.close();
+				}
+				if (producer != null) {
+					producer.close();
+				}
+			} catch (JMSException e) {
+				logger.error(" Exception :" + e.getMessage());
+				e.printStackTrace();
+			}
+
 		}
 
 	}
+
+	public static void main(String[] args) {
+		Randomizer randomizer = new Randomizer();
+		randomizer.sendMessage();
+	}
+	
 }
